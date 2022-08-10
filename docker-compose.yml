@@ -8,4 +8,4 @@ services:
         volumes:
             - './:/app/main'
         restart: always
-        image: docker-getwea
+        image: go-getweather:latest
