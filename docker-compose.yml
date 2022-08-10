@@ -1,0 +1,11 @@
+version: "3.7"
+services:
+    docker-getwea:
+        build: .
+        ports:
+          - '8080:8080'
+        working_dir: /app/main
+        volumes:
+            - './:/app/main'
+        restart: always
+        image: docker-getwea
