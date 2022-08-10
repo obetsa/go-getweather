@@ -10,3 +10,6 @@
 |--|--|--|
 |GET|/weather/search?cityName={City}|Location list|
 |GET|/weather/current?cityName={City}|Current forecast|
+
+## Doker
+docker run -d --rm -p 8080:8080 docker-getwea
