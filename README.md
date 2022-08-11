@@ -12,4 +12,6 @@
 |GET|/weather/current?cityName={City}|Current forecast|
 
 ## Docker run
-docker run -d --rm -p 8080:8080 docker-getwea
+sudo docker run -d --restart always -p 8080:8080 obetsa/go-getweather:latest
+
+## Terraform
