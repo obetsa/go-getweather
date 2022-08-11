@@ -13,11 +13,11 @@ output "go-getweather" {
   value = aws_security_group.go-getweather.id
 }
 
-output "ssl_cert_arn" {
-  value = aws_acm_certificate.cert.arn
+output "public_ip" {
+  value       = module.ec2_instance.public_ip
+  description = "The public IP of the web server"
 }
 
-output "public_ip" {
-  value       = aws_instance.example.public_ip
-  description = "The public IP of the web server"
+output "elb_dns_name" {
+  value = "${aws_elb.elb.dns_name}"
 }

@@ -15,7 +15,7 @@ variable "region" {
 variable "vpc_azs" {
   description = "Availability zones for VPC"
   type        = list(string)
-  default     = ["us-west-1a", "us-west-1b", "us-west-1c"]
+  default     = ["us-east-1a", "us-east-1b", "us-east-1c"]
 }
 
 variable "vpc_cidr_block" {
@@ -28,12 +28,6 @@ variable "vpc_enable_nat_gateway" {
   description = "Enable NAT gateway for VPC"
   type        = bool
   default     = true
-}
-
-variable "enable_vpn_gateway" {
-  description = "Enable a VPN gateway in your VPC."
-  type        = bool
-  default     = false
 }
 
 variable "public_subnet_count" {

@@ -4,7 +4,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "4.0.0"
+      version = ">= 4.25.0"
     }
   }
 }
@@ -17,7 +17,7 @@ data "aws_availability_zones" "available" {}
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "3.11.0"
+  version = "3.14.2"
 
   name = var.vpc_name
   cidr = var.vpc_cidr_block
@@ -27,18 +27,18 @@ module "vpc" {
   public_subnets  = slice(var.public_subnet_cidr_blocks, 0, var.public_subnet_count)
 
   enable_nat_gateway = var.vpc_enable_nat_gateway
-  enable_vpn_gateway = var.enable_vpn_gateway
+
+  tags = var.vpc_tags
 }
 
-module "ec2_instances" {
+module "ec2_instance" {
   source  = "terraform-aws-modules/ec2-instance/aws"
-  version = "2.12.0"
-  vpc_id = module.vpc.vpc_id
+  version = "4.1.2"
   name          = "ec2-go-getweather"
 
   ami           = "ami-090fa75af13c156b4"
   instance_type = "t2.micro"
-  vpc_security_group_ids = [aws_security_group.instance.id]
+  vpc_security_group_ids = [aws_security_group.go-getweather.id]
   subnet_id              = module.vpc.public_subnets[0]
 
   user_data = <<-EOF
@@ -84,29 +84,58 @@ resource "aws_security_group" "go-getweather" {
   }
 }
 
-resource "tls_private_key" "go" {
-  algorithm = "RSA"
+resource "aws_autoscaling_group" "go-getweather" {
+  name                 = "go-getweather-ag"  
+  launch_configuration = module.ec2_instance.id
+  load_balancers       = ["${aws_elb.elb.name}"]
+  availability_zones   = ["us-east-1b", "us-east-1a", "us-east-1c"]
+  min_size             = 1
+  max_size             = 2
+
+  tag {
+    key                 = "go-getweather"
+    value               = "terraform-go-asg"
+    propagate_at_launch = true
+  }
 }
 
-resource "tls_self_signed_cert" "go" {
-  key_algorithm   = "RSA"
-  private_key_pem = tls_private_key.go.private_key_pem
+resource "aws_security_group" "elb" {
+  name = "terraform-go-api"
 
-  subject {
-    common_name  = "hashicups.com"
-    organization = "HashiCups, Inc"
+  # Inbound HTTP from anywhere
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  validity_period_hours = 60
+  # Allow all outbound
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-  allowed_uses = [
-    "key_encipherment",
-    "digital_signature",
-    "server_auth",
-  ]
+    health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 3
+    interval            = 30
+    target              = "HTTP:8080/"
+  }
 }
 
-resource "aws_acm_certificate" "cert" {
-  private_key      = tls_private_key.go.private_key_pem
-  certificate_body = tls_self_signed_cert.go.cert_pem
+resource "aws_elb" "elb" {
+  name               = "go-getweather-elb"
+  availability_zones = ["us-east-1b", "us-east-1a", "us-east-1c"]
+  security_groups    = ["${aws_security_group.elb.id}"]
+
+    listener {
+    lb_port           = 8080
+    lb_protocol       = "http"
+    instance_port     = 8080
+    instance_protocol = "http"
+  }
 }
