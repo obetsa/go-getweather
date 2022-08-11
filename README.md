@@ -15,3 +15,7 @@
 sudo docker run -d --restart always -p 8080:8080 obetsa/go-getweather:latest
 
 ## Terraform
+
+
+## Kubernetes
+kubectl apply -f .
