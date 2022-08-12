@@ -13,7 +13,9 @@ provider "aws" {
   region = var.region
 }
 
-data "aws_availability_zones" "available" {}
+data "aws_availability_zones" "available" {
+  state = "available"
+}
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
@@ -25,6 +27,8 @@ module "vpc" {
   azs             = var.vpc_azs
   private_subnets = slice(var.private_subnet_cidr_blocks, 0, var.private_subnet_count)
   public_subnets  = slice(var.public_subnet_cidr_blocks, 0, var.public_subnet_count)
+  enable_dns_hostnames = true
+  enable_dns_support   = true
 
   enable_nat_gateway = var.vpc_enable_nat_gateway
 
@@ -66,16 +70,20 @@ resource "aws_eip" "go-elp" {
 
 resource "aws_security_group" "go-getweather-sg" {
   name = "go-getweather-sg"
+  vpc_id   = module.vpc.vpc_id
 
   ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+
   }
   ingress {
     from_port   = 22
+    to_port     = 22
     description = ""
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -85,8 +93,6 @@ resource "aws_security_group" "go-getweather-sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  vpc_id   = module.vpc.vpc_id
 }
 
 resource "aws_launch_configuration" "go-getweather-lc" {
@@ -106,6 +112,7 @@ resource "aws_launch_configuration" "go-getweather-lc" {
   lifecycle {
     create_before_destroy = true
   }
+
   connection {
     type        = "ssh"
     host        = self.public_ip
@@ -143,21 +150,29 @@ resource "aws_security_group" "go-getweather" {
 
 resource "aws_autoscaling_group" "go-getweather-ag" {
   name                 = "go-getweather-ag"  
-  launch_configuration = aws_launch_configuration.go-getweather-lc.id
-  load_balancers       = ["${aws_elb.elb.name}"]
-  availability_zones   = ["us-east-1b", "us-east-1a", "us-east-1c"]
   min_size             = 1
   max_size             = 2
+  desired_capacity     = 1
+  launch_configuration = aws_launch_configuration.go-getweather-lc.id
+  vpc_zone_identifier  = module.vpc.public_subnets
 
   tag {
-    key                 = "go-getweather"
+    key                 = "Name"
     value               = "terraform-go-asg"
     propagate_at_launch = true
   }
 }
 
+resource "aws_lb" "lb" {
+  name               = "go-getweather-elb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = ["${aws_security_group.elb.id}"]
+  subnets            = module.vpc.public_subnets
+}
+
 resource "aws_lb_listener" "go-list" {
-  load_balancer_arn = aws_elb.elb.arn
+  load_balancer_arn = aws_lb.lb.arn
   port              = "80"
   protocol          = "HTTP"
 
@@ -165,30 +180,6 @@ resource "aws_lb_listener" "go-list" {
     type             = "forward"
     target_group_arn = aws_lb_target_group.go-tg.arn
   }
-}
-
-resource "aws_elb" "elb" {
-  name               = "go-getweather-elb"
-  internal           = false
-  availability_zones = ["us-east-1b", "us-east-1a", "us-east-1c"]
-  security_groups    = ["${aws_security_group.elb.id}"]
-  subnets            = module.vpc.public_subnets
-
-  listener {
-    lb_port           = 80
-    lb_protocol       = "http"
-    instance_port     = 80
-    instance_protocol = "http"
-  }
-
-  health_check {
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-    timeout             = 3
-    interval            = 30
-    target              = "HTTP:80/"
-  }
-
 }
 
 resource "aws_lb_target_group" "go-tg" {
@@ -201,7 +192,7 @@ resource "aws_lb_target_group" "go-tg" {
 
 resource "aws_autoscaling_attachment" "go-acs-att" {
   autoscaling_group_name = aws_autoscaling_group.go-getweather-ag.id
-  alb_target_group_arn   = aws_lb_target_group.go-tg.arn
+  lb_target_group_arn   = aws_lb_target_group.go-tg.arn
 }
 
 resource "aws_security_group" "go-getweather_instance" {
