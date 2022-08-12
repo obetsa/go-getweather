@@ -63,6 +63,27 @@ module "ec2_instance" {
   }
 }
 
+module "ec2_cluster" {
+  source  = "terraform-aws-modules/ec2-instance/aws"
+  version = "4.1.2"
+
+  name          = "my-cluster-pr"
+  count         = 3
+
+  ami           = "ami-090fa75af13c156b4"
+  instance_type = "t2.micro"
+  key_name      = "go"
+  monitoring             = true
+  vpc_security_group_ids = [aws_security_group.go-getweather.id]
+  subnet_id              = module.vpc.private_subnets[0]
+  associate_public_ip_address = "false"
+
+  tags = {
+    Terraform   = "true"
+    Environment = "dev"
+  }
+}
+
 resource "aws_eip" "go-elp" {
   instance = module.ec2_instance.id
   vpc      = true
@@ -79,6 +100,7 @@ resource "aws_security_group" "go-getweather-sg" {
     cidr_blocks = ["0.0.0.0/0"]
 
   }
+
   ingress {
     from_port   = 22
     to_port     = 22
@@ -96,6 +118,7 @@ resource "aws_security_group" "go-getweather-sg" {
 }
 
 resource "aws_launch_configuration" "go-getweather-lc" {
+  name            = "ec2-lb-asg"
   image_id        = "ami-090fa75af13c156b4"
   instance_type   = "t2.micro"
   key_name        = "go"
@@ -136,6 +159,13 @@ resource "aws_security_group" "go-getweather" {
   ingress {
     from_port   = 8080
     to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -235,4 +265,15 @@ resource "aws_security_group" "elb" {
 
   vpc_id = module.vpc.vpc_id
 
+}
+
+module "website_s3_bucket" {
+  source = "./modules/aws-s3-static-website-bucket"
+
+  bucket_name = "obetsa-go-getweather"
+
+  tags = {
+    Terraform   = "true"
+    Environment = "dev"
+  }
 }
