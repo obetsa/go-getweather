@@ -38,6 +38,7 @@ module "ec2_instance" {
 
   ami           = "ami-090fa75af13c156b4"
   instance_type = "t2.micro"
+  key_name      = "go"
   vpc_security_group_ids = [aws_security_group.go-getweather.id]
   subnet_id              = module.vpc.public_subnets[0]
 
@@ -72,6 +73,18 @@ resource "aws_security_group" "go-getweather-sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  ingress {
+    from_port   = 22
+    description = ""
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   vpc_id   = module.vpc.vpc_id
 }
@@ -79,6 +92,7 @@ resource "aws_security_group" "go-getweather-sg" {
 resource "aws_launch_configuration" "go-getweather-lc" {
   image_id        = "ami-090fa75af13c156b4"
   instance_type   = "t2.micro"
+  key_name        = "go"
   security_groups = [aws_security_group.go-getweather-sg.id]
   user_data = <<-EOF
               #!/bin/bash
@@ -91,6 +105,13 @@ resource "aws_launch_configuration" "go-getweather-lc" {
               EOF
   lifecycle {
     create_before_destroy = true
+  }
+  connection {
+    type        = "ssh"
+    host        = self.public_ip
+    user        = "ec2-user"
+    private_key = file("/home/ec2-user/keys/aws/aws_key")
+    timeout     = "4m"
   }
 }
 
