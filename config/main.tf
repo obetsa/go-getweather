@@ -84,7 +84,7 @@ resource "aws_security_group" "go-getweather" {
   }
 }
 
-resource "aws_autoscaling_group" "go-getweather" {
+resource "aws_autoscaling_group" "go-getweather-ag" {
   name                 = "go-getweather-ag"  
   launch_configuration = module.ec2_instance.id
   load_balancers       = ["${aws_elb.elb.name}"]
@@ -118,13 +118,6 @@ resource "aws_security_group" "elb" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-    health_check {
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-    timeout             = 3
-    interval            = 30
-    target              = "HTTP:8080/"
-  }
 }
 
 resource "aws_elb" "elb" {
@@ -132,10 +125,19 @@ resource "aws_elb" "elb" {
   availability_zones = ["us-east-1b", "us-east-1a", "us-east-1c"]
   security_groups    = ["${aws_security_group.elb.id}"]
 
-    listener {
+  listener {
     lb_port           = 8080
     lb_protocol       = "http"
     instance_port     = 8080
     instance_protocol = "http"
   }
+
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 3
+    interval            = 30
+    target              = "HTTP:8080/"
+  }
+
 }
